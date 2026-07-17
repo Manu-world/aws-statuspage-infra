@@ -1,0 +1,33 @@
+# Dependencies
+node_modules/
+app/node_modules/
+
+# Build
+app/dist/
+*.tsbuildinfo
+
+# Env / secrets
+.env
+.env.local
+*.pem
+
+# Terraform
+infra/terraform/.terraform/
+infra/terraform/*.tfstate
+infra/terraform/*.tfstate.*
+infra/terraform/*.tfvars
+!infra/terraform/*.tfvars.example
+infra/terraform/crash.log
+infra/terraform/override.tf
+infra/terraform/override.tf.json
+
+# OS / IDE
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*.zip
+
+# Logs
+*.log
+npm-debug.log*
