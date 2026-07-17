@@ -1,0 +1,106 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main, dev]
+  push:
+    branches: [dev]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  app:
+    name: App build + Prisma smoke
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_USER: statuspage
+          POSTGRES_PASSWORD: statuspage
+          POSTGRES_DB: statuspage
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U statuspage -d statuspage"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    defaults:
+      run:
+        working-directory: app
+
+    env:
+      DATABASE_URL: postgresql://statuspage:statuspage@localhost:5432/statuspage?schema=public
+      SEED_ADMIN_EMAIL: ci-admin@example.com
+      SEED_ADMIN_PASSWORD: CiPasswordChangeMe1!
+      JWT_SECRET: ci-jwt-secret-not-for-production
+      NODE_ENV: test
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Prisma validate
+        run: npx prisma validate
+
+      - name: Typecheck / lint
+        run: npm run typecheck
+
+      - name: Build
+        run: npm run build
+
+      - name: Migrate + seed smoke test
+        run: |
+          npx prisma migrate deploy
+          npx prisma db seed
+
+      - name: Start app and hit /health
+        run: |
+          node dist/index.js &
+          APP_PID=$!
+          for i in $(seq 1 30); do
+            if curl -sf http://127.0.0.1:3000/health; then
+              kill $APP_PID
+              exit 0
+            fi
+            sleep 1
+          done
+          kill $APP_PID || true
+          echo "Health check failed"
+          exit 1
+
+  terraform:
+    name: Terraform fmt + validate
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: infra/terraform
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.9.0"
+
+      - name: Terraform fmt
+        run: terraform fmt -check -recursive
+
+      - name: Terraform init
+        run: terraform init -backend=false
+
+      - name: Terraform validate
+        run: terraform validate

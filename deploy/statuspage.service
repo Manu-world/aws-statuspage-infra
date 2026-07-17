@@ -1,0 +1,26 @@
+[Unit]
+Description=StatusPage Node.js application
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=statuspage
+Group=statuspage
+WorkingDirectory=/opt/statuspage
+EnvironmentFile=/etc/statuspage/env
+ExecStart=/usr/bin/node /opt/statuspage/dist/index.js
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+ProtectSystem=full
+ProtectHome=true
+PrivateTmp=true
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=statuspage
+
+# Listen port comes from EnvironmentFile (PORT=3000 by default)
+
+[Install]
+WantedBy=multi-user.target
