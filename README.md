@@ -2,7 +2,7 @@
 
 Public service-status page with a **production-shaped AWS footprint**: VPC (public / private-app / private-data), ALB → ASG (EC2) → RDS Postgres, Secrets Manager, scoped IAM, and GitHub Actions CI/CD via **OIDC** (no long-lived AWS keys).
 
-Phase 1 of the app is intentionally skeletal — enough for `/health`, migrations, and the deploy pipeline to be real. Admin/JWT auth ships later through the same pipeline.
+Includes a **stateless JWT admin panel** (httpOnly cookie) so you can manage services and incidents behind the same deploy pipeline.
 
 ---
 
@@ -43,7 +43,7 @@ flowchart TB
 | Edge | Application Load Balancer (HTTP :80), health check `GET /health` |
 | Compute | Auto Scaling Group (min 2 / desired 2 / max 4), Amazon Linux 2023, `t3.micro`, private subnets |
 | Data | RDS PostgreSQL 15, private-data subnets, **no IGW/NAT route**, `publicly_accessible = false` |
-| Secrets | Secrets Manager (`DATABASE_URL`, `JWT_SECRET`) fetched at boot |
+| Secrets | Secrets Manager (`DATABASE_URL`, `JWT_SECRET`, seed admin creds) fetched at boot |
 | Delivery | GitHub Actions → S3 `releases/<sha>.zip` + `latest.zip` → ASG instance refresh |
 
 Security groups: internet → `alb-sg` (80/443) → `app-sg` (3000 from ALB only) → `db-sg` (5432 from app only).
@@ -90,11 +90,41 @@ docker compose up --build
 
 Checks:
 
-- `GET http://localhost:3000/health` → `{"status":"ok"}` (200) when Postgres is reachable
-- `GET http://localhost:3000/` → public status page with seeded services/incidents
-- `GET http://localhost:3000/api/services` / `api/incidents?status=active`
+- `GET /health` → `{"status":"ok"}` (200)
+- `GET /` → public status page
+- `GET /login` → admin login (seed credentials from `.env`)
+- `GET /admin` → dashboard (requires cookie after login)
 
-Seed admin credentials come from `SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSWORD` in `.env` (auth UI is a later app phase).
+---
+
+## Auth and admin
+
+### Design
+
+- **JWT** signed with `JWT_SECRET`, **8 hour** expiry, payload `{ sub, email }`
+- Stored in **httpOnly** cookie `statuspage_token` (`SameSite=Lax`, `path=/`)
+- **No refresh-token store** — fully stateless across ASG instances
+- `COOKIE_SECURE` env (default `false`) — keep false on HTTP ALB; set `true` after you add HTTPS/ACM
+- Unauthenticated mutating APIs → **401**; unauthenticated `/admin` → redirect `/login`
+
+### Routes
+
+| Method | Path | Auth |
+|--------|------|------|
+| POST | `/api/auth/login` | public |
+| POST | `/api/auth/logout` | public (clears cookie) |
+| GET | `/login` | public |
+| GET | `/admin` | cookie |
+| POST/PATCH | `/api/services`, `/api/services/:id` | cookie |
+| POST/PATCH | `/api/incidents`, `/api/incidents/:id` | cookie |
+| POST | `/api/incidents/:id/updates` | cookie |
+
+### Seed modes
+
+| Env | Behavior |
+|-----|----------|
+| `SEED_DEMO_DATA=true` (local/CI) | Upsert admin **and** reset demo services/incidents |
+| `SEED_DEMO_DATA=false` (prod boot) | Upsert admin **only** — does not wipe live data |
 
 ---
 
@@ -102,22 +132,23 @@ Seed admin credentials come from `SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSWORD` in `
 
 ```bash
 cd infra/terraform
-cp terraform.tfvars.example terraform.tfvars   # edit github_org / github_repo if needed
+cp terraform.tfvars.example terraform.tfvars
+# set seed_admin_email / seed_admin_password for real admin creds
 terraform init
 terraform plan
-# terraform apply   # you run this when ready
+# terraform apply
 ```
 
-Important outputs after apply:
+Sensitive vars (override in `terraform.tfvars`, never commit real values):
 
-- `alb_dns_name` / `alb_url`
-- `artifact_bucket`
-- `asg_name`
-- `github_deploy_role_arn`
+- `seed_admin_email`
+- `seed_admin_password`
 
-**Cost note:** NAT Gateway + ALB + 2× t3.micro + RDS are not free-tier-zero. Destroy when idle: `terraform destroy`.
+Important outputs: `alb_url`, `artifact_bucket`, `asg_name`, `github_deploy_role_arn`
 
-HTTPS / custom domain (ACM + ALB listener) is intentionally omitted — add when you have a domain.
+**Cost note:** NAT + ALB + 2× t3.micro + RDS are not free. `terraform destroy` when idle.
+
+After changing secret fields, run `terraform apply`, then trigger a deploy/instance refresh so new user-data picks up seed env.
 
 ---
 
@@ -126,59 +157,52 @@ HTTPS / custom domain (ACM + ALB listener) is intentionally omitted — add when
 ### CI (PRs + `dev`)
 
 - Install, typecheck, build, `prisma validate`
-- Postgres service container → migrate + seed + `/health` smoke
+- Migrate + seed + `/health` + **login + create service** smoke
 - `terraform fmt -check` + `validate`
 
 ### CD (`main`)
 
-1. Build + zip release (`dist/`, `prisma/`, `package*.json`, `deploy/statuspage.service`)
-2. Assume AWS role via **GitHub OIDC**
-3. Upload `releases/<sha>.zip` and `releases/latest.zip` to the artifact bucket
-4. `aws autoscaling start-instance-refresh` on the ASG
+1. Build + zip release
+2. OIDC assume deploy role
+3. Upload `releases/<sha>.zip` and `releases/latest.zip`
+4. ASG instance refresh
 
-Until infra exists, CD **skips** AWS steps with a warning unless these are set:
+GitHub Environment **`production`** needs:
 
-| Kind | Name | Source after `terraform apply` |
-|------|------|--------------------------------|
+| Kind | Name | From |
+|------|------|------|
 | Secret | `AWS_DEPLOY_ROLE_ARN` | `github_deploy_role_arn` |
 | Variable | `ARTIFACT_BUCKET` | `artifact_bucket` |
 | Variable | `ASG_NAME` | `asg_name` |
 | Variable | `AWS_REGION` | e.g. `us-east-1` |
 
-Also create a GitHub Environment named `production` (referenced by `cd.yml`).
+### Boot path (EC2 user-data)
 
-### Boot path on a new EC2 instance
-
-`deploy/user-data.sh` (templated into the launch template):
-
-1. Install Node 20 on AL2023
-2. Pull `releases/latest.zip` from S3
-3. Fetch secret → `/etc/statuspage/env`
+1. Install Node 20
+2. Pull `releases/latest.zip`
+3. Secrets Manager → `/etc/statuspage/env`
 4. `prisma migrate deploy`
-5. Enable/start `statuspage.service` (listens on port **3000**)
+5. `prisma db seed` (admin upsert; demo off in prod)
+6. Start `statuspage.service` on port **3000**
 
----
-
-## Auth note (next app phase)
-
-JWT in an **httpOnly secure cookie**, short-lived access token, is the planned model so the app stays **stateless** across ASG instances. Not implemented in phase 1.
+First-time tip: if instances launch before any zip exists in S3, you get ALB **502** — see the [troubleshooting playbook](../docs/troubleshooting-playbook.md).
 
 ---
 
 ## What you still do manually
 
-1. `terraform apply` and review the plan first
-2. Wire GitHub Actions secrets/vars from Terraform outputs
-3. Optional: ACM certificate + HTTPS listener + DNS
-4. Optional: flip `db_multi_az = true` for HA RDS
-5. Later: admin panel + JWT routes on top of this pipeline
+1. `terraform apply` (and again after seed-admin secret fields if upgrading an existing stack)
+2. Wire GitHub Actions secrets/vars
+3. Optional: ACM + HTTPS listener + set `COOKIE_SECURE=true` in the secret
+4. Optional: `db_multi_az = true`
 
 ---
 
 ## Design talking points (resume)
 
-- Multi-tier VPC with **isolated data subnets** (no internet route)
-- Least-privilege security groups and IAM (instance role scoped to one secret ARN + one log group + artifact prefix)
-- GitHub OIDC deploy role — no static AWS keys in CI
-- ALB health check is a **real DB probe**, not a stub
-- Artifact + instance refresh delivery without baking AMI every commit
+- Multi-tier VPC with **isolated data subnets**
+- Least-privilege SG chain and IAM (no wildcard resource ARNs on write paths)
+- GitHub OIDC deploy — no static AWS keys in CI
+- ALB health check is a **real DB probe**
+- Stateless JWT cookie auth safe for multi-instance ASG
+- Seed-on-boot without wiping production incident data

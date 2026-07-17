@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Admin login — StatusPage</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen flex items-center justify-center px-4">
+  <main class="w-full max-w-md space-y-6">
+    <div>
+      <p class="text-sm uppercase tracking-widest text-slate-400">StatusPage</p>
+      <h1 class="text-2xl font-semibold mt-1">Admin login</h1>
+    </div>
+    <form id="login-form" class="space-y-4 rounded-lg border border-slate-800 bg-slate-900 p-6">
+      <div>
+        <label class="block text-sm text-slate-400 mb-1" for="email">Email</label>
+        <input id="email" name="email" type="email" required
+          class="w-full rounded-md bg-slate-950 border border-slate-700 px-3 py-2" />
+      </div>
+      <div>
+        <label class="block text-sm text-slate-400 mb-1" for="password">Password</label>
+        <input id="password" name="password" type="password" required
+          class="w-full rounded-md bg-slate-950 border border-slate-700 px-3 py-2" />
+      </div>
+      <p id="error" class="text-sm text-red-400 hidden"></p>
+      <button type="submit"
+        class="w-full rounded-md bg-sky-600 hover:bg-sky-500 px-3 py-2 font-medium">
+        Sign in
+      </button>
+    </form>
+    <p class="text-sm text-slate-500"><a class="underline" href="/">Back to status page</a></p>
+  </main>
+  <script>
+    const form = document.getElementById('login-form');
+    const errorEl = document.getElementById('error');
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      errorEl.classList.add('hidden');
+      const email = document.getElementById('email').value;
+      const password = document.getElementById('password').value;
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ email, password }),
+      });
+      if (!res.ok) {
+        errorEl.textContent = 'Invalid email or password';
+        errorEl.classList.remove('hidden');
+        return;
+      }
+      window.location.href = '/admin';
+    });
+  </script>
+</body>
+</html>
