@@ -1,0 +1,80 @@
+name: CD
+
+on:
+  push:
+    branches: [main]
+
+concurrency:
+  group: cd-main
+  cancel-in-progress: false
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  deploy:
+    name: Build artifact + deploy to ASG
+    runs-on: ubuntu-latest
+    environment: production
+
+    env:
+      AWS_REGION: ${{ vars.AWS_REGION || 'us-east-1' }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+
+      - name: Install + build
+        working-directory: app
+        run: |
+          npm ci
+          npx prisma generate
+          npm run build
+
+      - name: Package release artifact
+        run: |
+          mkdir -p release
+          cp -r app/dist release/dist
+          cp -r app/prisma release/prisma
+          cp app/package.json app/package-lock.json release/
+          mkdir -p release/deploy
+          cp deploy/statuspage.service release/deploy/
+          cd release
+          zip -r "../statuspage-${GITHUB_SHA}.zip" .
+          cp "../statuspage-${GITHUB_SHA}.zip" ../statuspage-latest.zip
+
+      - name: Require deploy role configuration
+        id: guard
+        run: |
+          if [ -z "${{ secrets.AWS_DEPLOY_ROLE_ARN }}" ] || [ -z "${{ vars.ARTIFACT_BUCKET }}" ] || [ -z "${{ vars.ASG_NAME }}" ]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "::warning::Infra not configured yet. Set AWS_DEPLOY_ROLE_ARN (secret), ARTIFACT_BUCKET and ASG_NAME (vars) after terraform apply. Skipping AWS deploy steps."
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Configure AWS credentials (OIDC)
+        if: steps.guard.outputs.skip == 'false'
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Upload artifact to S3
+        if: steps.guard.outputs.skip == 'false'
+        run: |
+          aws s3 cp "statuspage-${GITHUB_SHA}.zip" "s3://${{ vars.ARTIFACT_BUCKET }}/releases/${GITHUB_SHA}.zip"
+          aws s3 cp statuspage-latest.zip "s3://${{ vars.ARTIFACT_BUCKET }}/releases/latest.zip"
+
+      - name: Start ASG instance refresh
+        if: steps.guard.outputs.skip == 'false'
+        run: |
+          aws autoscaling start-instance-refresh \
+            --auto-scaling-group-name "${{ vars.ASG_NAME }}" \
+            --preferences MinHealthyPercentage=50,InstanceWarmup=300
