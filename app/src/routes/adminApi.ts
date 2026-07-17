@@ -46,6 +46,20 @@ adminApiRouter.post("/api/services", requireAuth, async (req, res, next) => {
   }
 });
 
+adminApiRouter.delete("/api/services/:id", requireAuth, async (req, res, next) => {
+  try {
+    const existing = await prisma.service.findUnique({ where: { id: req.params.id } });
+    if (!existing) {
+      res.status(404).json({ error: "not_found" });
+      return;
+    }
+    await prisma.service.delete({ where: { id: req.params.id } });
+    res.status(204).send();
+  } catch (err) {
+    next(err);
+  }
+});
+
 adminApiRouter.patch("/api/services/:id", requireAuth, async (req, res, next) => {
   try {
     const existing = await prisma.service.findUnique({ where: { id: req.params.id } });
@@ -203,6 +217,20 @@ adminApiRouter.patch("/api/incidents/:id", requireAuth, async (req, res, next) =
       },
     });
     res.json({ incident });
+  } catch (err) {
+    next(err);
+  }
+});
+
+adminApiRouter.delete("/api/incidents/:id", requireAuth, async (req, res, next) => {
+  try {
+    const existing = await prisma.incident.findUnique({ where: { id: req.params.id } });
+    if (!existing) {
+      res.status(404).json({ error: "not_found" });
+      return;
+    }
+    await prisma.incident.delete({ where: { id: req.params.id } });
+    res.status(204).send();
   } catch (err) {
     next(err);
   }

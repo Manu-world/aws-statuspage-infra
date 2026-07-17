@@ -47,6 +47,7 @@
                   <% }) %>
                 </select>
                 <button class="text-sm rounded-md border border-slate-700 px-2 py-1">Update status</button>
+                <button type="button" class="delete-service text-sm rounded-md border border-red-800 text-red-300 px-2 py-1">Delete</button>
               </form>
             </div>
           </li>
@@ -88,6 +89,7 @@
                   <% }) %>
                 </select>
                 <button class="text-sm rounded-md border border-slate-700 px-2 py-1">Update</button>
+                <button type="button" class="delete-incident text-sm rounded-md border border-red-800 text-red-300 px-2 py-1">Delete</button>
               </form>
             </div>
             <ol class="space-y-1 border-l border-slate-700 pl-3 text-sm">
@@ -117,10 +119,11 @@
     async function api(path, method, body) {
       const res = await fetch(path, {
         method,
-        headers: { 'Content-Type': 'application/json' },
+        headers: body ? { 'Content-Type': 'application/json' } : undefined,
         credentials: 'include',
         body: body ? JSON.stringify(body) : undefined,
       });
+      if (res.status === 204) return null;
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
         throw new Error(data.error || ('HTTP ' + res.status));
@@ -154,6 +157,15 @@
       });
     });
 
+    document.querySelectorAll('.delete-service').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        if (!confirm('Delete this service and its incidents?')) return;
+        const id = btn.closest('[data-service-id]').dataset.serviceId;
+        await api('/api/services/' + id, 'DELETE');
+        window.location.reload();
+      });
+    });
+
     document.getElementById('create-incident').addEventListener('submit', async (e) => {
       e.preventDefault();
       const fd = new FormData(e.target);
@@ -171,6 +183,15 @@
         const id = form.closest('[data-incident-id]').dataset.incidentId;
         const fd = new FormData(form);
         await api('/api/incidents/' + id, 'PATCH', { status: fd.get('status') });
+        window.location.reload();
+      });
+    });
+
+    document.querySelectorAll('.delete-incident').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        if (!confirm('Delete this incident?')) return;
+        const id = btn.closest('[data-incident-id]').dataset.incidentId;
+        await api('/api/incidents/' + id, 'DELETE');
         window.location.reload();
       });
     });
