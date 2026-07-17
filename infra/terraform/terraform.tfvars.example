@@ -4,3 +4,6 @@ environment   = "dev"
 github_org    = "Manu-world"
 github_repo   = "aws-statuspage-infra"
 db_multi_az   = false
+# Override these in terraform.tfvars (not committed) for real credentials
+# seed_admin_email    = "you@example.com"
+# seed_admin_password = "use-a-strong-password"

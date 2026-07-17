@@ -36,12 +36,20 @@ SECRET_JSON=$(aws secretsmanager get-secret-value \
 
 DATABASE_URL=$(echo "$SECRET_JSON" | jq -r .DATABASE_URL)
 JWT_SECRET=$(echo "$SECRET_JSON" | jq -r .JWT_SECRET)
+SEED_ADMIN_EMAIL=$(echo "$SECRET_JSON" | jq -r .SEED_ADMIN_EMAIL)
+SEED_ADMIN_PASSWORD=$(echo "$SECRET_JSON" | jq -r .SEED_ADMIN_PASSWORD)
+SEED_DEMO_DATA=$(echo "$SECRET_JSON" | jq -r '.SEED_DEMO_DATA // "false"')
+COOKIE_SECURE=$(echo "$SECRET_JSON" | jq -r '.COOKIE_SECURE // "false"')
 
 cat > "$ENV_FILE" <<EOF
 NODE_ENV=production
 PORT=$APP_PORT
 DATABASE_URL=$DATABASE_URL
 JWT_SECRET=$JWT_SECRET
+SEED_ADMIN_EMAIL=$SEED_ADMIN_EMAIL
+SEED_ADMIN_PASSWORD=$SEED_ADMIN_PASSWORD
+SEED_DEMO_DATA=$SEED_DEMO_DATA
+COOKIE_SECURE=$COOKIE_SECURE
 EOF
 chmod 600 "$ENV_FILE"
 chown root:root "$ENV_FILE"
@@ -65,6 +73,14 @@ set -a
 source "$ENV_FILE"
 set +a
 sudo -u "$APP_USER" env DATABASE_URL="$DATABASE_URL" npx prisma migrate deploy
+
+# Upsert admin user (SEED_DEMO_DATA=false in prod so live incidents are not wiped)
+sudo -u "$APP_USER" env \
+  DATABASE_URL="$DATABASE_URL" \
+  SEED_ADMIN_EMAIL="$SEED_ADMIN_EMAIL" \
+  SEED_ADMIN_PASSWORD="$SEED_ADMIN_PASSWORD" \
+  SEED_DEMO_DATA="$SEED_DEMO_DATA" \
+  npx prisma db seed
 
 # Install and start systemd unit (shipped inside the artifact under deploy/)
 if [ -f "$APP_DIR/deploy/statuspage.service" ]; then

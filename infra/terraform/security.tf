@@ -33,7 +33,7 @@ resource "aws_security_group" "alb" {
 
 resource "aws_security_group" "app" {
   name        = "${local.name_prefix}-app-sg"
-  description = "App tier — only ALB may reach the app port"
+  description = "App tier - only ALB may reach the app port"
   vpc_id      = aws_vpc.main.id
 
   ingress {
@@ -58,7 +58,7 @@ resource "aws_security_group" "app" {
 
 resource "aws_security_group" "db" {
   name        = "${local.name_prefix}-db-sg"
-  description = "Data tier — Postgres only from app SG"
+  description = "Data tier - Postgres only from app SG"
   vpc_id      = aws_vpc.main.id
 
   ingress {
