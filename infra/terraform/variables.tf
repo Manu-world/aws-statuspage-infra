@@ -87,3 +87,17 @@ variable "tags" {
   type        = map(string)
   default     = {}
 }
+
+variable "seed_admin_email" {
+  description = "Admin email written into Secrets Manager and upserted on instance boot"
+  type        = string
+  default     = "admin@example.com"
+  sensitive   = true
+}
+
+variable "seed_admin_password" {
+  description = "Admin password written into Secrets Manager and upserted on instance boot"
+  type        = string
+  default     = "ChangeMeStrongPassword1!"
+  sensitive   = true
+}

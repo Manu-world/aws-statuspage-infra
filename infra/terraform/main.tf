@@ -25,3 +25,4 @@ locals {
   private_app_subnet_cidrs = ["10.40.10.0/24", "10.40.11.0/24"]
   private_db_subnet_cidrs  = ["10.40.20.0/24", "10.40.21.0/24"]
 }
+

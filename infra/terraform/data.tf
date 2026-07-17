@@ -23,12 +23,16 @@ resource "aws_secretsmanager_secret" "app" {
 resource "aws_secretsmanager_secret_version" "app" {
   secret_id = aws_secretsmanager_secret.app.id
   secret_string = jsonencode({
-    DATABASE_URL = "postgresql://${var.db_username}:${random_password.db.result}@${aws_db_instance.main.address}:5432/${var.db_name}?schema=public"
-    JWT_SECRET   = random_password.jwt.result
-    DB_USERNAME  = var.db_username
-    DB_PASSWORD  = random_password.db.result
-    DB_HOST      = aws_db_instance.main.address
-    DB_NAME      = var.db_name
+    DATABASE_URL        = "postgresql://${var.db_username}:${random_password.db.result}@${aws_db_instance.main.address}:5432/${var.db_name}?schema=public"
+    JWT_SECRET          = random_password.jwt.result
+    DB_USERNAME         = var.db_username
+    DB_PASSWORD         = random_password.db.result
+    DB_HOST             = aws_db_instance.main.address
+    DB_NAME             = var.db_name
+    SEED_ADMIN_EMAIL    = var.seed_admin_email
+    SEED_ADMIN_PASSWORD = var.seed_admin_password
+    SEED_DEMO_DATA      = "false"
+    COOKIE_SECURE       = "false"
   })
 }
 
