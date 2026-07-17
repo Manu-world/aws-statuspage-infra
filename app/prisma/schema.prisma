@@ -1,0 +1,75 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum ServiceStatus {
+  operational
+  degraded_performance
+  partial_outage
+  major_outage
+}
+
+enum IncidentStatus {
+  investigating
+  identified
+  monitoring
+  resolved
+}
+
+enum IncidentSeverity {
+  minor
+  major
+  critical
+}
+
+model Service {
+  id           String        @id @default(uuid()) @db.Uuid
+  name         String        @db.VarChar(100)
+  description  String?
+  status       ServiceStatus @default(operational)
+  displayOrder Int           @default(0) @map("display_order")
+  createdAt    DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt    DateTime      @updatedAt @map("updated_at") @db.Timestamptz(3)
+  incidents    Incident[]
+
+  @@map("services")
+}
+
+model Incident {
+  id         String           @id @default(uuid()) @db.Uuid
+  serviceId  String           @map("service_id") @db.Uuid
+  title      String           @db.VarChar(200)
+  status     IncidentStatus   @default(investigating)
+  severity   IncidentSeverity
+  createdAt  DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
+  resolvedAt DateTime?        @map("resolved_at") @db.Timestamptz(3)
+  service    Service          @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+  updates    IncidentUpdate[]
+
+  @@map("incidents")
+}
+
+model IncidentUpdate {
+  id             String   @id @default(uuid()) @db.Uuid
+  incidentId     String   @map("incident_id") @db.Uuid
+  message        String
+  statusAtUpdate String   @map("status_at_update") @db.VarChar(50)
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  incident       Incident @relation(fields: [incidentId], references: [id], onDelete: Cascade)
+
+  @@map("incident_updates")
+}
+
+model AdminUser {
+  id           String   @id @default(uuid()) @db.Uuid
+  email        String   @unique
+  passwordHash String   @map("password_hash")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  @@map("admin_users")
+}
