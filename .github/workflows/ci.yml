@@ -38,8 +38,11 @@ jobs:
       DATABASE_URL: postgresql://statuspage:statuspage@localhost:5432/statuspage?schema=public
       SEED_ADMIN_EMAIL: ci-admin@example.com
       SEED_ADMIN_PASSWORD: CiPasswordChangeMe1!
+      SEED_DEMO_DATA: "true"
       JWT_SECRET: ci-jwt-secret-not-for-production
+      COOKIE_SECURE: "false"
       NODE_ENV: test
+      PORT: "3000"
 
     steps:
       - uses: actions/checkout@v4
@@ -67,20 +70,36 @@ jobs:
           npx prisma migrate deploy
           npx prisma db seed
 
-      - name: Start app and hit /health
+      - name: Start app and smoke auth + write path
         run: |
           node dist/index.js &
           APP_PID=$!
+          cleanup() { kill $APP_PID 2>/dev/null || true; }
+          trap cleanup EXIT
+
           for i in $(seq 1 30); do
             if curl -sf http://127.0.0.1:3000/health; then
-              kill $APP_PID
-              exit 0
+              break
             fi
             sleep 1
+            if [ "$i" -eq 30 ]; then
+              echo "Health check failed"
+              exit 1
+            fi
           done
-          kill $APP_PID || true
-          echo "Health check failed"
-          exit 1
+
+          curl -sf -c /tmp/cj -H 'Content-Type: application/json' \
+            -d '{"email":"ci-admin@example.com","password":"CiPasswordChangeMe1!"}' \
+            http://127.0.0.1:3000/api/auth/login >/tmp/login.json
+          cat /tmp/login.json
+
+          curl -sf -b /tmp/cj -H 'Content-Type: application/json' \
+            -d '{"name":"CI Probe Service","status":"operational"}' \
+            http://127.0.0.1:3000/api/services >/tmp/svc.json
+          cat /tmp/svc.json
+
+          curl -sf http://127.0.0.1:3000/api/services | grep -q "CI Probe Service"
+          echo "Auth + write smoke OK"
 
   terraform:
     name: Terraform fmt + validate

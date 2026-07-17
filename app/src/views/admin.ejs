@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Admin — StatusPage</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen">
+  <main class="max-w-5xl mx-auto px-4 py-8 space-y-10">
+    <header class="flex flex-wrap items-center justify-between gap-4">
+      <div>
+        <p class="text-sm uppercase tracking-widest text-slate-400">StatusPage Admin</p>
+        <h1 class="text-2xl font-semibold">Dashboard</h1>
+        <p class="text-sm text-slate-400">Signed in as <%= adminEmail %></p>
+      </div>
+      <div class="flex gap-3">
+        <a href="/" class="text-sm underline text-slate-300">Public page</a>
+        <button id="logout-btn" class="text-sm rounded-md border border-slate-700 px-3 py-1.5">Logout</button>
+      </div>
+    </header>
+
+    <section class="space-y-4">
+      <h2 class="text-xl font-medium">Services</h2>
+      <form id="create-service" class="grid gap-3 md:grid-cols-4 rounded-lg border border-slate-800 bg-slate-900 p-4">
+        <input name="name" placeholder="Name" required class="rounded-md bg-slate-950 border border-slate-700 px-3 py-2" />
+        <input name="description" placeholder="Description" class="rounded-md bg-slate-950 border border-slate-700 px-3 py-2" />
+        <select name="status" class="rounded-md bg-slate-950 border border-slate-700 px-3 py-2">
+          <% serviceStatuses.forEach(function(s) { %>
+            <option value="<%= s %>"><%= s %></option>
+          <% }) %>
+        </select>
+        <button class="rounded-md bg-sky-600 hover:bg-sky-500 px-3 py-2">Add service</button>
+      </form>
+      <ul class="divide-y divide-slate-800 rounded-lg border border-slate-800 bg-slate-900">
+        <% services.forEach(function(service) { %>
+          <li class="p-4 space-y-3" data-service-id="<%= service.id %>">
+            <div class="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <p class="font-medium"><%= service.name %></p>
+                <p class="text-sm text-slate-400"><%= service.description || "" %></p>
+              </div>
+              <form class="patch-service flex flex-wrap gap-2 items-center">
+                <select name="status" class="rounded-md bg-slate-950 border border-slate-700 px-2 py-1 text-sm">
+                  <% serviceStatuses.forEach(function(s) { %>
+                    <option value="<%= s %>" <%= s === service.status ? "selected" : "" %>><%= s %></option>
+                  <% }) %>
+                </select>
+                <button class="text-sm rounded-md border border-slate-700 px-2 py-1">Update status</button>
+              </form>
+            </div>
+          </li>
+        <% }) %>
+      </ul>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-xl font-medium">Incidents</h2>
+      <form id="create-incident" class="grid gap-3 md:grid-cols-5 rounded-lg border border-slate-800 bg-slate-900 p-4">
+        <input name="title" placeholder="Title" required class="md:col-span-2 rounded-md bg-slate-950 border border-slate-700 px-3 py-2" />
+        <select name="service_id" required class="rounded-md bg-slate-950 border border-slate-700 px-3 py-2">
+          <% services.forEach(function(service) { %>
+            <option value="<%= service.id %>"><%= service.name %></option>
+          <% }) %>
+        </select>
+        <select name="severity" class="rounded-md bg-slate-950 border border-slate-700 px-3 py-2">
+          <% severities.forEach(function(s) { %>
+            <option value="<%= s %>"><%= s %></option>
+          <% }) %>
+        </select>
+        <button class="rounded-md bg-sky-600 hover:bg-sky-500 px-3 py-2">Open incident</button>
+      </form>
+
+      <div class="space-y-4">
+        <% incidents.forEach(function(incident) { %>
+          <article class="rounded-lg border border-slate-800 bg-slate-900 p-4 space-y-3" data-incident-id="<%= incident.id %>">
+            <div class="flex flex-wrap justify-between gap-2">
+              <div>
+                <h3 class="font-medium"><%= incident.title %></h3>
+                <p class="text-sm text-slate-400">
+                  <%= incident.service.name %> · <%= incident.severity %> · <%= incident.status %>
+                </p>
+              </div>
+              <form class="patch-incident flex gap-2 items-center">
+                <select name="status" class="rounded-md bg-slate-950 border border-slate-700 px-2 py-1 text-sm">
+                  <% incidentStatuses.forEach(function(s) { %>
+                    <option value="<%= s %>" <%= s === incident.status ? "selected" : "" %>><%= s %></option>
+                  <% }) %>
+                </select>
+                <button class="text-sm rounded-md border border-slate-700 px-2 py-1">Update</button>
+              </form>
+            </div>
+            <ol class="space-y-1 border-l border-slate-700 pl-3 text-sm">
+              <% incident.updates.forEach(function(update) { %>
+                <li>
+                  <p><%= update.message %></p>
+                  <p class="text-xs text-slate-500"><%= update.statusAtUpdate %> · <%= update.createdAt.toISOString() %></p>
+                </li>
+              <% }) %>
+            </ol>
+            <form class="add-update grid gap-2 md:grid-cols-4">
+              <input name="message" placeholder="Update message" required class="md:col-span-2 rounded-md bg-slate-950 border border-slate-700 px-3 py-2 text-sm" />
+              <select name="status_at_update" class="rounded-md bg-slate-950 border border-slate-700 px-3 py-2 text-sm">
+                <% incidentStatuses.forEach(function(s) { %>
+                  <option value="<%= s %>"><%= s %></option>
+                <% }) %>
+              </select>
+              <button class="rounded-md border border-slate-700 px-3 py-2 text-sm">Add update</button>
+            </form>
+          </article>
+        <% }) %>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    async function api(path, method, body) {
+      const res = await fetch(path, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: body ? JSON.stringify(body) : undefined,
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || ('HTTP ' + res.status));
+      }
+      return res.json();
+    }
+
+    document.getElementById('logout-btn').addEventListener('click', async () => {
+      await api('/api/auth/logout', 'POST');
+      window.location.href = '/login';
+    });
+
+    document.getElementById('create-service').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const fd = new FormData(e.target);
+      await api('/api/services', 'POST', {
+        name: fd.get('name'),
+        description: fd.get('description') || null,
+        status: fd.get('status'),
+      });
+      window.location.reload();
+    });
+
+    document.querySelectorAll('.patch-service').forEach((form) => {
+      form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const id = form.closest('[data-service-id]').dataset.serviceId;
+        const fd = new FormData(form);
+        await api('/api/services/' + id, 'PATCH', { status: fd.get('status') });
+        window.location.reload();
+      });
+    });
+
+    document.getElementById('create-incident').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const fd = new FormData(e.target);
+      await api('/api/incidents', 'POST', {
+        title: fd.get('title'),
+        service_id: fd.get('service_id'),
+        severity: fd.get('severity'),
+      });
+      window.location.reload();
+    });
+
+    document.querySelectorAll('.patch-incident').forEach((form) => {
+      form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const id = form.closest('[data-incident-id]').dataset.incidentId;
+        const fd = new FormData(form);
+        await api('/api/incidents/' + id, 'PATCH', { status: fd.get('status') });
+        window.location.reload();
+      });
+    });
+
+    document.querySelectorAll('.add-update').forEach((form) => {
+      form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const id = form.closest('[data-incident-id]').dataset.incidentId;
+        const fd = new FormData(form);
+        await api('/api/incidents/' + id + '/updates', 'POST', {
+          message: fd.get('message'),
+          status_at_update: fd.get('status_at_update'),
+        });
+        window.location.reload();
+      });
+    });
+  </script>
+</body>
+</html>
