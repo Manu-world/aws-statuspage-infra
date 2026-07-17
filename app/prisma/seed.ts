@@ -3,6 +3,14 @@ import { PrismaClient, IncidentStatus, IncidentSeverity, ServiceStatus } from "@
 
 const prisma = new PrismaClient();
 
+function seedDemoEnabled(): boolean {
+  const raw = process.env.SEED_DEMO_DATA;
+  if (raw === undefined || raw === "") {
+    return true;
+  }
+  return raw === "true" || raw === "1";
+}
+
 async function main() {
   const email = process.env.SEED_ADMIN_EMAIL;
   const password = process.env.SEED_ADMIN_PASSWORD;
@@ -18,6 +26,13 @@ async function main() {
     update: { passwordHash },
     create: { email, passwordHash },
   });
+
+  if (!seedDemoEnabled()) {
+    console.log(
+      JSON.stringify({ event: "seed_complete", adminEmail: email, demoData: false })
+    );
+    return;
+  }
 
   await prisma.incidentUpdate.deleteMany();
   await prisma.incident.deleteMany();
@@ -122,13 +137,14 @@ async function main() {
     ],
   });
 
-  // Keep active incident status in sync with latest update narrative
   await prisma.incident.update({
     where: { id: active.id },
     data: { status: IncidentStatus.monitoring },
   });
 
-  console.log(JSON.stringify({ event: "seed_complete", adminEmail: email }));
+  console.log(
+    JSON.stringify({ event: "seed_complete", adminEmail: email, demoData: true })
+  );
 }
 
 main()
