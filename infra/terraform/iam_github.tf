@@ -25,13 +25,12 @@ data "aws_iam_policy_document" "github_deploy_trust" {
       values   = ["sts.amazonaws.com"]
     }
 
+    # Repo-scoped wildcard: covers branch pushes (ref:...), GitHub Environments
+    # (environment:...), and other job contexts. Still limited to THIS repo only.
     condition {
       test     = "StringLike"
       variable = "token.actions.githubusercontent.com:sub"
-      values = [
-        "repo:${var.github_org}/${var.github_repo}:ref:refs/heads/main",
-        "repo:${var.github_org}/${var.github_repo}:environment:production",
-      ]
+      values   = ["repo:${var.github_org}/${var.github_repo}:*"]
     }
   }
 }
