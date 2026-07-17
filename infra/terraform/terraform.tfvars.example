@@ -1,0 +1,6 @@
+aws_region    = "us-east-1"
+project_name  = "statuspage"
+environment   = "dev"
+github_org    = "Manu-world"
+github_repo   = "aws-statuspage-infra"
+db_multi_az   = false
