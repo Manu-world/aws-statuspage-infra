@@ -4,6 +4,13 @@ Public service-status page with a **production-shaped AWS footprint**: VPC (publ
 
 Includes a **stateless JWT admin panel** (httpOnly cookie) so you can manage services and incidents behind the same deploy pipeline.
 
+## Docs
+
+| Document | Description |
+|----------|-------------|
+| [Architecture diagram (draw.io)](docs/statuspage-architecture.drawio) | VPC 3-tier reference diagram (ALB → EC2 ASG → RDS) |
+| [Cost analysis report](docs/cost-analysis-report.md) | Always-on us-east-1 estimate (~$88/mo) with Pricing API unit rates |
+
 ---
 
 ## Architecture
