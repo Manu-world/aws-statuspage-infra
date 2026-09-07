@@ -1,4 +1,4 @@
-# StatusPage — AWS cloud infrastructure portfolio
+# StatusPage - AWS cloud infrastructure portfolio
 
 Public service-status page with a **production-shaped AWS footprint**: VPC (public / private-app / private-data), ALB → ASG (EC2) → RDS Postgres, Secrets Manager, scoped IAM, and GitHub Actions CI/CD via **OIDC** (no long-lived AWS keys).
 
@@ -14,36 +14,7 @@ Includes a **stateless JWT admin panel** (httpOnly cookie) so you can manage ser
 ---
 
 ## Architecture
-
-```mermaid
-flowchart TB
-  subgraph gh [GitHub]
-    Repo[Repo]
-    CI[CI: lint build prisma tf]
-    CD[CD on main: artifact]
-  end
-
-  subgraph aws [AWS]
-    OIDC[OIDC deploy role]
-    S3[S3 artifacts]
-    ALB[ALB public]
-    ASG[ASG private-app]
-    RDS[RDS private-data]
-    SM[Secrets Manager]
-    CW[CloudWatch Logs]
-  end
-
-  Repo --> CI
-  Repo --> CD
-  CD -->|assume role| OIDC
-  CD -->|upload zip| S3
-  CD -->|instance refresh| ASG
-  ALB -->|/health :3000| ASG
-  ASG --> RDS
-  ASG --> SM
-  ASG --> S3
-  ASG --> CW
-```
+![Architecture Diagram](docs/architecture.png)
 
 | Tier | What |
 |------|------|
@@ -110,8 +81,8 @@ Checks:
 
 - **JWT** signed with `JWT_SECRET`, **8 hour** expiry, payload `{ sub, email }`
 - Stored in **httpOnly** cookie `statuspage_token` (`SameSite=Lax`, `path=/`)
-- **No refresh-token store** — fully stateless across ASG instances
-- `COOKIE_SECURE` env (default `false`) — keep false on HTTP ALB; set `true` after you add HTTPS/ACM
+- **No refresh-token store** - fully stateless across ASG instances
+- `COOKIE_SECURE` env (default `false`) - keep false on HTTP ALB; set `true` after you add HTTPS/ACM
 - Unauthenticated mutating APIs → **401**; unauthenticated `/admin` → redirect `/login`
 
 ### Routes
@@ -131,7 +102,7 @@ Checks:
 | Env | Behavior |
 |-----|----------|
 | `SEED_DEMO_DATA=true` (local/CI) | Upsert admin **and** reset demo services/incidents |
-| `SEED_DEMO_DATA=false` (prod boot) | Upsert admin **only** — does not wipe live data |
+| `SEED_DEMO_DATA=false` (prod boot) | Upsert admin **only** - does not wipe live data |
 
 ---
 
@@ -192,7 +163,7 @@ GitHub Environment **`production`** needs:
 5. `prisma db seed` (admin upsert; demo off in prod)
 6. Start `statuspage.service` on port **3000**
 
-First-time tip: if instances launch before any zip exists in S3, you get ALB **502** — see the [troubleshooting playbook](../docs/troubleshooting-playbook.md).
+First-time tip: if instances launch before any zip exists in S3, you get ALB **502** - see the [troubleshooting playbook](../docs/troubleshooting-playbook.md).
 
 ---
 
@@ -209,7 +180,7 @@ First-time tip: if instances launch before any zip exists in S3, you get ALB **5
 
 - Multi-tier VPC with **isolated data subnets**
 - Least-privilege SG chain and IAM (no wildcard resource ARNs on write paths)
-- GitHub OIDC deploy — no static AWS keys in CI
+- GitHub OIDC deploy - no static AWS keys in CI
 - ALB health check is a **real DB probe**
 - Stateless JWT cookie auth safe for multi-instance ASG
 - Seed-on-boot without wiping production incident data
